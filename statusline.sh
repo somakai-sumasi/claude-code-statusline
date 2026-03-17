@@ -3,7 +3,7 @@
 # Constants
 COMPACTION_THRESHOLD=160000  # 200000 * 0.8
 USAGE_CACHE_FILE="$HOME/.claude/usage-cache.json"
-USAGE_CACHE_TTL=60  # seconds
+USAGE_CACHE_TTL=60000  # milliseconds (matches JS version)
 
 # Colors
 GREEN=$(printf '\033[32m')
@@ -91,7 +91,9 @@ format_reset_time() {
   [ -z "$reset_str" ] && return
 
   local reset_epoch
-  reset_epoch=$(date -jf "%Y-%m-%dT%H:%M:%S" "$(echo "$reset_str" | sed 's/\.[0-9]*Z$//' | sed 's/Z$//')" +%s 2>/dev/null) || return
+  local cleaned
+  cleaned=$(echo "$reset_str" | sed 's/\.[0-9]*//' | sed 's/+00:00$//' | sed 's/Z$//')
+  reset_epoch=$(TZ=UTC date -jf "%Y-%m-%dT%H:%M:%S" "$cleaned" +%s 2>/dev/null) || return
   local now_epoch
   now_epoch=$(date +%s)
   local diff_sec=$((reset_epoch - now_epoch))
@@ -142,9 +144,9 @@ get_usage() {
   if [ -f "$USAGE_CACHE_FILE" ]; then
     local cached_ts
     cached_ts=$(jq -r '.timestamp // 0' "$USAGE_CACHE_FILE" 2>/dev/null)
-    local now_s
-    now_s=$(date +%s)
-    local age=$(( now_s - cached_ts ))
+    local now_ms
+    now_ms=$(date +%s)000
+    local age=$(( now_ms - cached_ts ))
     if [ "$age" -lt "$USAGE_CACHE_TTL" ]; then
       jq -r '.data // empty' "$USAGE_CACHE_FILE" 2>/dev/null
       return
@@ -154,18 +156,18 @@ get_usage() {
   # Fetch fresh
   local data
   data=$(fetch_usage)
-  local now_s
-  now_s=$(date +%s)
+  local now_ms
+  now_ms=$(date +%s)000
 
   if [ -n "$data" ]; then
-    jq -n --argjson ts "$now_s" --argjson data "$data" '{"timestamp": $ts, "data": $data}' > "$USAGE_CACHE_FILE" 2>/dev/null
+    jq -n --argjson ts "$now_ms" --argjson data "$data" '{"timestamp": $ts, "data": $data}' > "$USAGE_CACHE_FILE" 2>/dev/null
     echo "$data"
   else
     # API failed - write cache to prevent hammering
     if [ -f "$USAGE_CACHE_FILE" ]; then
       local fallback
       fallback=$(jq '.data // null' "$USAGE_CACHE_FILE" 2>/dev/null)
-      jq -n --argjson ts "$now_s" --argjson data "$fallback" '{"timestamp": $ts, "data": $data}' > "$USAGE_CACHE_FILE" 2>/dev/null
+      jq -n --argjson ts "$now_ms" --argjson data "$fallback" '{"timestamp": $ts, "data": $data}' > "$USAGE_CACHE_FILE" 2>/dev/null
       echo "$fallback"
     fi
   fi
