@@ -181,9 +181,9 @@ format_usage_display() {
 
   local extracted
   extracted=$(echo "$usage" | jq -r '[
-    (.five_hour.utilization // empty | round),
+    (.five_hour.utilization // null | if . then round else "" end),
     (.five_hour.resets_at // ""),
-    (.seven_day.utilization // empty | round),
+    (.seven_day.utilization // null | if . then round else "" end),
     (.seven_day.resets_at // "")
   ] | @tsv')
   [ -z "$extracted" ] && return
