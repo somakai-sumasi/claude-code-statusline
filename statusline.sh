@@ -125,14 +125,14 @@ BRANCH_DISPLAY=""
 [ -n "$BRANCH_NAME" ] && BRANCH_DISPLAY=" (${BRANCH_NAME}${IS_DIRTY})"
 
 LINE1="${CURRENT_DIR}${BRANCH_DISPLAY} ${MODEL} v${CLAUDE_VERSION}"
-CTX_PART="${LABEL}ctx${RESET} $(gradient "$PERCENTAGE")$(braille_bar "$PERCENTAGE")${RESET} ${PERCENTAGE}% ($(format_token_count "$TOTAL_TOKENS"))"
+CTX_PART="${LABEL}ctx${RESET} $(gradient "$PERCENTAGE")$(braille_bar "$PERCENTAGE") ${PERCENTAGE}%${RESET} ($(format_token_count "$TOTAL_TOKENS"))"
 
 render_usage_part() {
   local label=$1 pct=$2 reset_epoch=$3
   [ -z "$pct" ] && return
   local rounded
   rounded=$(printf '%.0f' "$pct")
-  local part="${LABEL}${label}${RESET} $(gradient "$rounded")$(braille_bar "$rounded")${RESET} ${rounded}%"
+  local part="${LABEL}${label}${RESET} $(gradient "$rounded")$(braille_bar "$rounded") ${rounded}%${RESET}"
   if [ -n "$reset_epoch" ]; then
     local reset
     reset=$(format_duration $((reset_epoch - NOW_EPOCH)))

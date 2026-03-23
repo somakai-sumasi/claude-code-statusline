@@ -151,7 +151,7 @@ function render(ctx) {
   const pct = Math.min(100, Math.round((ctx.totalTokens / COMPACTION_THRESHOLD) * 100));
   const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${ctx.git.isDirty ? '*' : ''})` : '';
   const line1 = `${ctx.currentDir}${branchDisplay} ${ctx.model} v${ctx.version}`;
-  const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)}${RESET} ${pct}% (${formatTokenCount(ctx.totalTokens)})`;
+  const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)} ${pct}%${RESET} (${formatTokenCount(ctx.totalTokens)})`;
 
   const RATE_LIMIT_KEYS = [
     { key: 'five_hour', label: '5h' },
@@ -162,7 +162,7 @@ function render(ctx) {
     .filter(({ key }) => ctx.rateLimits?.[key])
     .map(({ key, label }) => {
       const u = Math.round(ctx.rateLimits[key].used_percentage);
-      let part = `${LABEL}${label}${RESET} ${gradient(u)}${brailleBar(u)}${RESET} ${u}%`;
+      let part = `${LABEL}${label}${RESET} ${gradient(u)}${brailleBar(u)} ${u}%${RESET}`;
       if (ctx.rateLimits[key].resets_at) part += ` (${formatDuration(ctx.rateLimits[key].resets_at - nowEpoch)})`;
       return part;
     });
