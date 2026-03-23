@@ -21,7 +21,7 @@ Color coding (green/yellow/red) is applied to usage percentages.
 | File | Runtime | Dependencies |
 |------|---------|-------------|
 | `statusline.js` | Node.js 18+ | None (built-in modules only) |
-| `statusline.sh` | POSIX sh | `jq`, `curl` |
+| `statusline.sh` | POSIX sh | `jq` |
 
 ## Setup
 
@@ -56,26 +56,24 @@ chmod +x ~/.claude/statusline.js  # or statusline.sh
 
 Replace `statusline.js` with `statusline.sh` if using the shell version.
 
+## Requirements
+
+- **Claude Code v2.1.80+** (requires `rate_limits` field in stdin JSON)
+
+### Node.js version
+- Node.js 18+
+
+### Shell version
+- `jq` for JSON parsing
+- macOS `date` (BSD variant)
+
 ## Features
 
 - Context window usage with color-coded percentage (green < 70% < yellow < 90% < red)
 - Token count (formatted as K/M)
 - Git branch name and dirty state
-- API rate limit display (5-hour and 7-day windows)
+- API rate limit display (5-hour and 7-day windows) via stdin `rate_limits`
 - Rate limit reset time countdown
-- Usage data caching (60s TTL) to avoid excessive API calls
-- OAuth token retrieval from macOS Keychain
-
-## Requirements
-
-### Node.js version
-- Node.js 18+ (for built-in `fetch`)
-
-### Shell version
-- `jq` for JSON parsing
-- `curl` for API requests
-- macOS `security` command (for Keychain access)
-- macOS `date` (BSD variant)
 
 ## License
 
