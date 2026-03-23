@@ -4,25 +4,46 @@
 COMPACTION_THRESHOLD=160000  # 200000 * 0.8
 
 # ==== UI helpers ====
-GREEN=$(printf '\033[32m')
-YELLOW=$(printf '\033[33m')
-RED=$(printf '\033[31m')
 RESET=$(printf '\033[0m')
+LABEL=$(printf '\033[38;2;140;140;140m')
 
-color_by_pct() {
+gradient() {
   local pct=$1
-  if [ "$pct" -ge 90 ]; then printf '%s' "$RED"
-  elif [ "$pct" -ge 70 ]; then printf '%s' "$YELLOW"
-  else printf '%s' "$GREEN"
+  if [ "$pct" -lt 50 ]; then
+    local r=$((pct * 51 / 10))
+    printf '\033[38;2;%d;200;80m' "$r"
+  else
+    local g=$((200 - (pct - 50) * 4))
+    [ "$g" -lt 0 ] && g=0
+    printf '\033[38;2;255;%d;60m' "$g"
   fi
 }
 
-color_by_usage() {
-  local util=$1
-  if [ "$util" -ge 80 ]; then printf '%s' "$RED"
-  elif [ "$util" -ge 50 ]; then printf '%s' "$YELLOW"
-  else printf '%s' "$GREEN"
-  fi
+braille_bar() {
+  local pct=$1
+  local width=${2:-8}
+  [ "$pct" -lt 0 ] && pct=0
+  [ "$pct" -gt 100 ] && pct=100
+  local chars=' ⣀⣄⣤⣦⣶⣷⣿'
+  local bar=""
+  local i=0
+  while [ "$i" -lt "$width" ]; do
+    local seg_start_x100=$((i * 10000 / width))
+    local seg_end_x100=$(((i + 1) * 10000 / width))
+    local level_x100=$((pct * 100))
+    if [ "$level_x100" -ge "$seg_end_x100" ]; then
+      bar="${bar}$(echo "$chars" | cut -c8)"
+    elif [ "$level_x100" -le "$seg_start_x100" ]; then
+      bar="${bar} "
+    else
+      local frac_x7=$(( (level_x100 - seg_start_x100) * 7 / (seg_end_x100 - seg_start_x100) ))
+      [ "$frac_x7" -gt 7 ] && frac_x7=7
+      local idx=$((frac_x7 + 1))
+      bar="${bar}$(echo "$chars" | cut -c${idx})"
+    fi
+    i=$((i + 1))
+  done
+  printf '%s' "$bar"
 }
 
 format_token_count() {
@@ -103,14 +124,15 @@ PERCENTAGE=$((TOTAL_TOKENS * 100 / COMPACTION_THRESHOLD))
 BRANCH_DISPLAY=""
 [ -n "$BRANCH_NAME" ] && BRANCH_DISPLAY=" (${BRANCH_NAME}${IS_DIRTY})"
 
-LINE1="${CURRENT_DIR}${BRANCH_DISPLAY} · $(color_by_pct "$PERCENTAGE")${PERCENTAGE}%${RESET} ($(format_token_count "$TOTAL_TOKENS"))"
+LINE1="${CURRENT_DIR}${BRANCH_DISPLAY} ${MODEL} v${CLAUDE_VERSION}"
+CTX_PART="${LABEL}ctx${RESET} $(gradient "$PERCENTAGE")$(braille_bar "$PERCENTAGE")${RESET} ${PERCENTAGE}% ($(format_token_count "$TOTAL_TOKENS"))"
 
 render_usage_part() {
   local label=$1 pct=$2 reset_epoch=$3
   [ -z "$pct" ] && return
   local rounded
   rounded=$(printf '%.0f' "$pct")
-  local part="${label} $(color_by_usage "$rounded")${rounded}%${RESET}"
+  local part="${LABEL}${label}${RESET} $(gradient "$rounded")$(braille_bar "$rounded")${RESET} ${rounded}%"
   if [ -n "$reset_epoch" ]; then
     local reset
     reset=$(format_duration $((reset_epoch - NOW_EPOCH)))
@@ -126,12 +148,12 @@ for entry in "5h|${FIVE_HOUR_PCT}|${FIVE_HOUR_RESET}" "7d|${SEVEN_DAY_PCT}|${SEV
   reset_epoch=$(echo "$entry" | cut -d'|' -f3)
   part=$(render_usage_part "$label" "$pct" "$reset_epoch")
   if [ -n "$part" ]; then
-    [ -n "$USAGE_PARTS" ] && USAGE_PARTS="${USAGE_PARTS} · "
+    [ -n "$USAGE_PARTS" ] && USAGE_PARTS="${USAGE_PARTS} | "
     USAGE_PARTS="${USAGE_PARTS}${part}"
   fi
 done
 
-LINE2="${MODEL} v${CLAUDE_VERSION}"
-[ -n "$USAGE_PARTS" ] && LINE2="${LINE2} · ${USAGE_PARTS}"
+LINE2="${CTX_PART}"
+[ -n "$USAGE_PARTS" ] && LINE2="${LINE2} | ${USAGE_PARTS}"
 
 printf '%s\n%s\n' "$LINE1" "$LINE2"

@@ -10,18 +10,36 @@ const COMPACTION_THRESHOLD = 200000 * 0.8;
 const MINUTES_PER_DAY = 1440;
 
 // ==== UI helpers ====
-const COLORS = { GREEN: '\x1b[32m', YELLOW: '\x1b[33m', RED: '\x1b[31m', RESET: '\x1b[0m' };
+const BRAILLE = ' ⣀⣄⣤⣦⣶⣷⣿';
+const RESET = '\x1b[0m';
+const LABEL = '\x1b[38;2;140;140;140m';
 
-function colorByPct(pct) {
-  if (pct >= 90) return COLORS.RED;
-  if (pct >= 70) return COLORS.YELLOW;
-  return COLORS.GREEN;
+function gradient(pct) {
+  if (pct < 50) {
+    const r = Math.floor(pct * 5.1);
+    return `\x1b[38;2;${r};200;80m`;
+  }
+  const g = Math.max(Math.floor(200 - (pct - 50) * 4), 0);
+  return `\x1b[38;2;255;${g};60m`;
 }
 
-function colorByUsage(util) {
-  if (util >= 80) return COLORS.RED;
-  if (util >= 50) return COLORS.YELLOW;
-  return COLORS.GREEN;
+function brailleBar(pct, width = 8) {
+  pct = Math.min(Math.max(pct, 0), 100);
+  const level = pct / 100;
+  let bar = '';
+  for (let i = 0; i < width; i++) {
+    const segStart = i / width;
+    const segEnd = (i + 1) / width;
+    if (level >= segEnd) {
+      bar += BRAILLE[7];
+    } else if (level <= segStart) {
+      bar += BRAILLE[0];
+    } else {
+      const frac = (level - segStart) / (segEnd - segStart);
+      bar += BRAILLE[Math.min(Math.floor(frac * 7), 7)];
+    }
+  }
+  return bar;
 }
 
 function formatTokenCount(tokens) {
@@ -132,7 +150,8 @@ function render(ctx) {
 
   const pct = Math.min(100, Math.round((ctx.totalTokens / COMPACTION_THRESHOLD) * 100));
   const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${ctx.git.isDirty ? '*' : ''})` : '';
-  const line1 = `${ctx.currentDir}${branchDisplay} · ${colorByPct(pct)}${pct}%${COLORS.RESET} (${formatTokenCount(ctx.totalTokens)})`;
+  const line1 = `${ctx.currentDir}${branchDisplay} ${ctx.model} v${ctx.version}`;
+  const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)}${RESET} ${pct}% (${formatTokenCount(ctx.totalTokens)})`;
 
   const RATE_LIMIT_KEYS = [
     { key: 'five_hour', label: '5h' },
@@ -143,15 +162,15 @@ function render(ctx) {
     .filter(({ key }) => ctx.rateLimits?.[key])
     .map(({ key, label }) => {
       const u = Math.round(ctx.rateLimits[key].used_percentage);
-      let part = `${label} ${colorByUsage(u)}${u}%${COLORS.RESET}`;
+      let part = `${LABEL}${label}${RESET} ${gradient(u)}${brailleBar(u)}${RESET} ${u}%`;
       if (ctx.rateLimits[key].resets_at) part += ` (${formatDuration(ctx.rateLimits[key].resets_at - nowEpoch)})`;
       return part;
     });
 
-  const line2Parts = [`${ctx.model} v${ctx.version}`];
-  if (usageParts.length) line2Parts.push(usageParts.join(' · '));
+  const line2Parts = [ctxPart];
+  if (usageParts.length) line2Parts.push(...usageParts);
 
-  return `${line1}\n${line2Parts.join(' · ')}`;
+  return `${line1}\n${line2Parts.join(' | ')}`;
 }
 
 // ==== Main ====
