@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# ==== Constants ====
-COMPACTION_THRESHOLD=160000  # 200000 * 0.8
-
 # ==== UI helpers ====
 RESET=$(printf '\033[0m')
 LABEL=$(printf '\033[38;2;140;140;140m')
@@ -79,8 +76,11 @@ INPUT="$(cat)"
 eval "$(echo "$INPUT" | jq -r '
   @sh "MODEL=\(.model.display_name // "Unknown")",
   @sh "CURRENT_DIR=\((.workspace.current_dir // .cwd // ".") | split("/") | last)",
-  @sh "SESSION_ID=\(.session_id // "")",
   @sh "CWD=\(.workspace.current_dir // .cwd // ".")",
+  @sh "VERSION=\(.version // "")",
+  @sh "CTX_USED_PCT=\(.context_window.used_percentage // "")",
+  @sh "CTX_TOTAL_INPUT=\(.context_window.total_input_tokens // 0)",
+  @sh "CTX_TOTAL_OUTPUT=\(.context_window.total_output_tokens // 0)",
   @sh "FIVE_HOUR_PCT=\(.rate_limits.five_hour.used_percentage // "")",
   @sh "FIVE_HOUR_RESET=\(.rate_limits.five_hour.resets_at // "")",
   @sh "SEVEN_DAY_PCT=\(.rate_limits.seven_day.used_percentage // "")",
@@ -96,35 +96,18 @@ else
   BRANCH_NAME=""
 fi
 
-TOTAL_TOKENS=0
-if [ -n "$SESSION_ID" ]; then
-  PROJECTS_DIR="$HOME/.claude/projects"
-  if [ -d "$PROJECTS_DIR" ]; then
-    for PROJECT_DIR in "$PROJECTS_DIR"/*/; do
-      TRANSCRIPT_FILE="${PROJECT_DIR}${SESSION_ID}.jsonl"
-      if [ -f "$TRANSCRIPT_FILE" ]; then
-        LAST_USAGE=$(grep '"type":"assistant"' "$TRANSCRIPT_FILE" | grep '"usage"' | tail -1 | jq -r '.message.usage // empty')
-        if [ -n "$LAST_USAGE" ]; then
-          TOTAL_TOKENS=$(echo "$LAST_USAGE" | jq '(.input_tokens // 0) + (.output_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)')
-        fi
-        break
-      fi
-    done
-  fi
-fi
-
-CLAUDE_VERSION=$(claude --version 2>/dev/null | awk '{print $1; exit}' || echo "2.1.0")
+TOTAL_TOKENS=$((CTX_TOTAL_INPUT + CTX_TOTAL_OUTPUT))
 NOW_EPOCH=$(date +%s)
 
 # ==== Rendering ====
 
-PERCENTAGE=$((TOTAL_TOKENS * 100 / COMPACTION_THRESHOLD))
+PERCENTAGE="${CTX_USED_PCT:-0}"
 [ "$PERCENTAGE" -gt 100 ] && PERCENTAGE=100
 
 BRANCH_DISPLAY=""
 [ -n "$BRANCH_NAME" ] && BRANCH_DISPLAY=" (${BRANCH_NAME}${IS_DIRTY})"
 
-LINE1="${CURRENT_DIR}${BRANCH_DISPLAY} ${MODEL} v${CLAUDE_VERSION}"
+LINE1="${CURRENT_DIR}${BRANCH_DISPLAY} ${MODEL} v${VERSION}"
 CTX_PART="${LABEL}ctx${RESET} $(gradient "$PERCENTAGE")$(braille_bar "$PERCENTAGE") ${PERCENTAGE}%${RESET} ($(format_token_count "$TOTAL_TOKENS"))"
 
 render_usage_part() {

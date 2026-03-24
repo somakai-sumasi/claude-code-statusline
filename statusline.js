@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const readline = require('readline');
 const { execSync } = require('child_process');
+const path = require('path');
 
 // ==== Constants ====
-const COMPACTION_THRESHOLD = 200000 * 0.8;
 const MINUTES_PER_DAY = 1440;
 
 // ==== UI helpers ====
@@ -71,75 +68,19 @@ function getGitInfo(cwd) {
   }
 }
 
-function getClaudeVersion() {
-  try {
-    return execSync('claude --version', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim().split(/\s+/)[0] || '2.1.0';
-  } catch {
-    return '2.1.0';
-  }
-}
-
-async function calculateTokensFromTranscript(filePath) {
-  return new Promise((resolve, reject) => {
-    let lastUsage = null;
-    const rl = readline.createInterface({
-      input: fs.createReadStream(filePath),
-      crlfDelay: Infinity
-    });
-
-    rl.on('line', (line) => {
-      try {
-        const entry = JSON.parse(line);
-        if (entry.type === 'assistant' && entry.message?.usage) {
-          lastUsage = entry.message.usage;
-        }
-      } catch {}
-    });
-
-    rl.on('close', () => {
-      if (lastUsage) {
-        resolve(
-          (lastUsage.input_tokens || 0) +
-          (lastUsage.output_tokens || 0) +
-          (lastUsage.cache_creation_input_tokens || 0) +
-          (lastUsage.cache_read_input_tokens || 0)
-        );
-      } else {
-        resolve(0);
-      }
-    });
-
-    rl.on('error', reject);
-  });
-}
-
-async function collectData(input) {
+function collectData(input) {
   const data = JSON.parse(input);
   const cwd = data.workspace?.current_dir || data.cwd || '.';
-
-  let totalTokens = 0;
-  if (data.session_id) {
-    const projectsDir = path.join(process.env.HOME, '.claude', 'projects');
-    if (fs.existsSync(projectsDir)) {
-      for (const dir of fs.readdirSync(projectsDir)) {
-        const fullDir = path.join(projectsDir, dir);
-        if (!fs.statSync(fullDir).isDirectory()) continue;
-        const transcriptFile = path.join(fullDir, `${data.session_id}.jsonl`);
-        if (fs.existsSync(transcriptFile)) {
-          totalTokens = await calculateTokensFromTranscript(transcriptFile);
-          break;
-        }
-      }
-    }
-  }
+  const ctx = data.context_window || {};
 
   return {
     model: data.model?.display_name || 'Unknown',
     currentDir: path.basename(cwd),
     git: getGitInfo(cwd),
-    totalTokens,
+    totalTokens: (ctx.total_input_tokens || 0) + (ctx.total_output_tokens || 0),
+    usedPercentage: ctx.used_percentage ?? 0,
     rateLimits: data.rate_limits || null,
-    version: getClaudeVersion(),
+    version: data.version || '',
   };
 }
 
@@ -148,7 +89,7 @@ async function collectData(input) {
 function render(ctx) {
   const nowEpoch = Math.floor(Date.now() / 1000);
 
-  const pct = Math.min(100, Math.round((ctx.totalTokens / COMPACTION_THRESHOLD) * 100));
+  const pct = Math.min(100, ctx.usedPercentage);
   const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${ctx.git.isDirty ? '*' : ''})` : '';
   const line1 = `${ctx.currentDir}${branchDisplay} ${ctx.model} v${ctx.version}`;
   const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)} ${pct}%${RESET} (${formatTokenCount(ctx.totalTokens)})`;
@@ -177,9 +118,9 @@ function render(ctx) {
 
 let input = '';
 process.stdin.on('data', chunk => input += chunk);
-process.stdin.on('end', async () => {
+process.stdin.on('end', () => {
   try {
-    const ctx = await collectData(input);
+    const ctx = collectData(input);
     console.log(render(ctx));
   } catch {
     console.log('[Error] . | 0 | 0%');
