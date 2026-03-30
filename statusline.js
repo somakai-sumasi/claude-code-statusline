@@ -62,9 +62,12 @@ function getGitInfo(cwd) {
   try {
     const branchName = execSync('git rev-parse --abbrev-ref HEAD', { cwd, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
     const status = execSync('git status --porcelain', { cwd, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
-    return { branchName, isDirty: status.length > 0 };
+    const lines = status ? status.split('\n') : [];
+    const staged = lines.filter(l => l[0] !== ' ' && l[0] !== '?').length;
+    const modified = lines.filter(l => l[1] !== ' ' && l[1] !== '?').length;
+    return { branchName, isDirty: lines.length > 0, staged, modified };
   } catch {
-    return { branchName: '', isDirty: false };
+    return { branchName: '', isDirty: false, staged: 0, modified: 0 };
   }
 }
 
@@ -89,8 +92,15 @@ function collectData(input) {
 function render(ctx) {
   const nowEpoch = Math.floor(Date.now() / 1000);
 
+  const GREEN = '\x1b[38;2;80;200;80m';
+  const YELLOW = '\x1b[38;2;255;200;60m';
+
   const pct = Math.min(100, ctx.usedPercentage);
-  const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${ctx.git.isDirty ? '*' : ''})` : '';
+  let gitChanges = '';
+  if (ctx.git.staged > 0) gitChanges += ` ${GREEN}+${ctx.git.staged}${RESET}`;
+  if (ctx.git.modified > 0) gitChanges += ` ${YELLOW}~${ctx.git.modified}${RESET}`;
+  const dirty = ctx.git.isDirty && ctx.git.staged === 0 && ctx.git.modified === 0;
+  const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${dirty ? '*' : ''}${gitChanges})` : '';
   const line1 = `${ctx.currentDir}${branchDisplay} ${ctx.model} v${ctx.version}`;
   const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)} ${pct}%${RESET} (${formatTokenCount(ctx.totalTokens)})`;
 
@@ -119,7 +129,7 @@ function render(ctx) {
           projPart = `${projColor}${Math.min(projected, 999)}%${RESET}`;
         }
       }
-      return { usagePart, projPart };
+      return { usagePart, projPart, label };
     });
 
   const line2Parts = [ctxPart, ...entries.map(e => e.usagePart)];
