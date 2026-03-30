@@ -6,11 +6,7 @@ Displays context window usage, API rate limits, git info, and model version in t
 
 ## Preview
 
-```
-claude-code-statusline (main*) Sonnet 4.6 v2.1.85
-ctx ⣿⣿⣿⣷ 49% (43.3K) | 5h ⣿⣿⣿⣤ 43% (1h 52m) | 7d ⣀ 3% (6d 21h 53m)
-at reset                   69%                        238%
-```
+<img width="550" height="65" alt="image" src="https://github.com/user-attachments/assets/34b1350c-3c09-4e25-aa4a-7a1ab4690db0" />
 
 - **Line 1**: Directory name, git branch/dirty state, model name, version
 - **Line 2**: Context window usage (% and token count), API rate limits (5-hour and 7-day with reset times)
