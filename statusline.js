@@ -95,23 +95,50 @@ function render(ctx) {
   const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)} ${pct}%${RESET} (${formatTokenCount(ctx.totalTokens)})`;
 
   const RATE_LIMIT_KEYS = [
-    { key: 'five_hour', label: '5h' },
-    { key: 'seven_day', label: '7d' },
+    { key: 'five_hour', label: '5h', windowSec: 5 * 3600 },
+    { key: 'seven_day', label: '7d', windowSec: 7 * 24 * 3600 },
   ];
 
-  const usageParts = RATE_LIMIT_KEYS
+  const visibleLen = s => s.replace(/\x1b\[[0-9;]*m/g, '').length;
+
+  const entries = RATE_LIMIT_KEYS
     .filter(({ key }) => ctx.rateLimits?.[key])
-    .map(({ key, label }) => {
-      const u = Math.round(ctx.rateLimits[key].used_percentage);
-      let part = `${LABEL}${label}${RESET} ${gradient(u)}${brailleBar(u)} ${u}%${RESET}`;
-      if (ctx.rateLimits[key].resets_at) part += ` (${formatDuration(ctx.rateLimits[key].resets_at - nowEpoch)})`;
-      return part;
+    .map(({ key, label, windowSec }) => {
+      const rl = ctx.rateLimits[key];
+      const u = Math.round(rl.used_percentage);
+      let usagePart = `${LABEL}${label}${RESET} ${gradient(u)}${brailleBar(u)} ${u}%${RESET}`;
+      if (rl.resets_at) usagePart += ` (${formatDuration(rl.resets_at - nowEpoch)})`;
+
+      let projPart = null;
+      if (rl.resets_at) {
+        const remainSec = rl.resets_at - nowEpoch;
+        const elapsedSec = windowSec - remainSec;
+        if (elapsedSec > 60 && u > 0) {
+          const projected = Math.round((u / elapsedSec) * windowSec);
+          const projColor = projected >= 100 ? '\x1b[38;2;255;200;0m' : '\x1b[38;2;80;200;80m';
+          projPart = `${projColor}${Math.min(projected, 999)}%${RESET}`;
+        }
+      }
+      return { usagePart, projPart };
     });
 
-  const line2Parts = [ctxPart];
-  if (usageParts.length) line2Parts.push(...usageParts);
+  const line2Parts = [ctxPart, ...entries.map(e => e.usagePart)];
+  const lines = [`${line1}`, line2Parts.join(' | ')];
 
-  return `${line1}\n${line2Parts.join(' | ')}`;
+  if (entries.some(e => e.projPart)) {
+    // "at reset"(8) + pad → align under pct: ctxPart + " | "(3) + label(2)+" "+bar(8)+" "(1) - 8 = +7
+    const pad = ' '.repeat(visibleLen(ctxPart) + 7);
+    const projSegments = entries.map((e, i) => {
+      const isLast = i === entries.length - 1;
+      if (!e.projPart) return isLast ? '' : ' '.repeat(visibleLen(e.usagePart) + 3);
+      const gap = isLast ? '' : ' '.repeat(Math.max(0, visibleLen(e.usagePart) + 3 - visibleLen(e.projPart)));
+      return e.projPart + gap;
+    });
+    while (projSegments.length && projSegments[projSegments.length - 1] === '') projSegments.pop();
+    lines.push(`${LABEL}at reset${RESET}${pad}${projSegments.join('')}`);
+  }
+
+  return lines.join('\n');
 }
 
 // ==== Main ====

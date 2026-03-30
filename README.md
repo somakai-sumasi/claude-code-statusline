@@ -7,73 +7,48 @@ Displays context window usage, API rate limits, git info, and model version in t
 ## Preview
 
 ```
-for_study (main*) · 81% (130.3K)
-Opus 4.6 v2.1.72 · 5h 8% (4h 18m) · 7d 15% (1d 19h 18m)
+claude-code-statusline (main*) Sonnet 4.6 v2.1.85
+ctx ⣿⣿⣿⣷ 49% (43.3K) | 5h ⣿⣿⣿⣤ 43% (1h 52m) | 7d ⣀ 3% (6d 21h 53m)
+at reset                   69%                        238%
 ```
 
-- **Line 1**: Directory name, git branch/dirty state, context window usage (% and token count)
-- **Line 2**: Model name, Claude Code version, API rate limits (5-hour and 7-day with reset times)
+- **Line 1**: Directory name, git branch/dirty state, model name, version
+- **Line 2**: Context window usage (% and token count), API rate limits (5-hour and 7-day with reset times)
+- **Line 3** (`at reset`): Projected usage at reset time based on current consumption rate — green if under 100%, yellow if over
 
-Color coding (green/yellow/red) is applied to usage percentages.
-
-## Variants
-
-| File | Runtime | Dependencies |
-|------|---------|-------------|
-| `statusline.js` | Node.js 18+ | None (built-in modules only) |
-| `statusline.sh` | POSIX sh | `jq` |
+Color coding (green/yellow/red gradient) is applied to usage percentages.
 
 ## Setup
 
-1. Clone this repository and create a symlink:
+1. Clone this repository:
 
 ```bash
 git clone https://github.com/<your-username>/claude-code-statusline.git
-
-# Node.js version
-ln -s "$(pwd)/claude-code-statusline/statusline.js" ~/.claude/statusline.js
-
-# Or shell version
-ln -s "$(pwd)/claude-code-statusline/statusline.sh" ~/.claude/statusline.sh
 ```
 
-2. Make sure the script is executable:
-
-```bash
-chmod +x ~/.claude/statusline.js  # or statusline.sh
-```
-
-3. Add to `~/.claude/settings.json`:
+2. Add to `~/.claude/settings.json`:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.js"
+    "command": "node ~/path/to/claude-code-statusline/statusline.js"
   }
 }
 ```
 
-Replace `statusline.js` with `statusline.sh` if using the shell version.
-
 ## Requirements
 
 - **Claude Code v2.1.80+** (requires `rate_limits` field in stdin JSON)
-
-### Node.js version
 - Node.js 18+
-
-### Shell version
-- `jq` for JSON parsing
-- macOS `date` (BSD variant)
 
 ## Features
 
-- Context window usage with color-coded percentage (green < 70% < yellow < 90% < red)
+- Context window usage with braille bar and color-coded percentage
 - Token count (formatted as K/M)
 - Git branch name and dirty state
-- API rate limit display (5-hour and 7-day windows) via stdin `rate_limits`
-- Rate limit reset time countdown
+- API rate limit display (5-hour and 7-day windows) with reset time countdown
+- **Projected usage at reset** (`at reset` line): estimates whether you'll exhaust tokens before the window resets, based on current average consumption rate
 
 ## License
 
