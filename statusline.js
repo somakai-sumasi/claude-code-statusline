@@ -79,6 +79,7 @@ function collectData(input) {
   return {
     model: data.model?.display_name || 'Unknown',
     currentDir: path.basename(cwd),
+    currentDirFull: cwd,
     git: getGitInfo(cwd),
     totalTokens: (ctx.total_input_tokens || 0) + (ctx.total_output_tokens || 0),
     usedPercentage: ctx.used_percentage ?? 0,
@@ -101,7 +102,9 @@ function render(ctx) {
   if (ctx.git.modified > 0) gitChanges += ` ${YELLOW}~${ctx.git.modified}${RESET}`;
   const dirty = ctx.git.isDirty && ctx.git.staged === 0 && ctx.git.modified === 0;
   const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${dirty ? '*' : ''}${gitChanges})` : '';
-  const line1 = `${ctx.currentDir}${branchDisplay} ${ctx.model} v${ctx.version}`;
+  const UNDERLINE = '\x1b[4m';
+  const dirLink = `\x1b]8;;vscode://file${ctx.currentDirFull}\x07${UNDERLINE}${ctx.currentDir}${RESET}\x1b]8;;\x07`;
+  const line1 = `${dirLink}${branchDisplay} ${ctx.model} v${ctx.version}`;
   const ctxPart = `${LABEL}ctx${RESET} ${gradient(pct)}${brailleBar(pct)} ${pct}%${RESET} (${formatTokenCount(ctx.totalTokens)})`;
 
   const RATE_LIMIT_KEYS = [
