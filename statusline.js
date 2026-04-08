@@ -61,13 +61,13 @@ function formatDuration(diffSec) {
 function getGitInfo(cwd) {
   try {
     const branchName = execSync('git rev-parse --abbrev-ref HEAD', { cwd, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
-    const status = execSync('git status --porcelain', { cwd, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+    const status = execSync('git status --porcelain', { cwd, stdio: ['pipe', 'pipe', 'ignore'] }).toString().replace(/\n$/, '');
     const lines = status ? status.split('\n') : [];
-    const staged = lines.filter(l => l[0] !== ' ' && l[0] !== '?').length;
     const modified = lines.filter(l => l[1] !== ' ' && l[1] !== '?').length;
-    return { branchName, isDirty: lines.length > 0, staged, modified };
+    const untracked = lines.filter(l => l[0] === '?' && l[1] === '?').length;
+    return { branchName, isDirty: lines.length > 0, modified, untracked };
   } catch {
-    return { branchName: '', isDirty: false, staged: 0, modified: 0 };
+    return { branchName: '', isDirty: false, modified: 0, untracked: 0 };
   }
 }
 
@@ -98,9 +98,9 @@ function render(ctx) {
 
   const pct = Math.min(100, ctx.usedPercentage);
   let gitChanges = '';
-  if (ctx.git.staged > 0) gitChanges += ` ${GREEN}+${ctx.git.staged}${RESET}`;
+  if (ctx.git.untracked > 0) gitChanges += ` ${GREEN}+${ctx.git.untracked}${RESET}`;
   if (ctx.git.modified > 0) gitChanges += ` ${YELLOW}~${ctx.git.modified}${RESET}`;
-  const dirty = ctx.git.isDirty && ctx.git.staged === 0 && ctx.git.modified === 0;
+  const dirty = ctx.git.isDirty && ctx.git.modified === 0 && ctx.git.untracked === 0;
   const branchDisplay = ctx.git.branchName ? ` (${ctx.git.branchName}${dirty ? '*' : ''}${gitChanges})` : '';
   const UNDERLINE = '\x1b[4m';
   const dirLink = `\x1b]8;;vscode://file${ctx.currentDirFull}\x07${UNDERLINE}${ctx.currentDir}${RESET}\x1b]8;;\x07`;
